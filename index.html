@@ -243,6 +243,15 @@ label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mu
 .cbox-ic{width:40px;height:40px;border-radius:12px;background:var(--danger-soft);color:var(--danger);display:grid;place-items:center;font:700 22px var(--display)}
 label.f{min-width:0}
 label.f input[type=date]{min-width:0;max-width:100%;box-sizing:border-box}
+.dist{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+.dist-r{cursor:pointer}
+.dist-r:active{opacity:.7}
+.dist-r .row{gap:8px;font-size:14px}
+.dist-r .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dist-r .pc{width:40px;text-align:right;color:var(--muted);font-size:13px}
+.dbar{height:6px;border-radius:4px;background:var(--soft);margin-top:6px;overflow:hidden}
+.dbar i{display:block;height:100%;border-radius:4px;background:var(--spend)}
+.dbar.in i{background:var(--ok)}
 .cat.tap{cursor:pointer}
 .cat.tap:active{opacity:.7}
 
@@ -684,6 +693,26 @@ function loansHTML(){
   return h+'</div>';
 }
 
+/* byudjet: xarajat yoki daromad kategoriyalar bo'yicha qanday taqsimlangan (kattasidan kichigiga) */
+function distHTML(m){
+  const inc=!!S.distIn,by={};
+  for(const t of S.tx){if(!inMonth(t,m))continue;
+    if(inc){if(t.t==='in')by[t.cat||'extra']=(by[t.cat||'extra']||0)+t.a;}
+    else{if(t.t==='out'&&t.cat!=='kredit')by[t.cat]=(by[t.cat]||0)+t.a;const f=fiOf(t);if(f)by.__int=(by.__int||0)+f;}}
+  const rows=Object.entries(by).filter(([,v])=>v>=1).map(([id,v])=>{const c=id==='__int'?{name:'Foizlar',c:'var(--danger)'}:catOf(id);return {id,name:c.name,c:c.c,v};}).sort((a,b)=>b.v-a.v);
+  const tot=rows.reduce((s,r)=>s+r.v,0),mx=rows.length?rows[0].v:1;
+  const pc=v=>{const p=v/tot*100;return p<1?'<1%':Math.round(p)+'%';};
+  const seg=`<div class="seg" style="grid-template-columns:1fr 1fr;margin-bottom:14px"><button type="button" data-dist="0" class="${inc?'':'on'}">Xarajatlar</button><button type="button" data-dist="1" class="${inc?'on':''}">Daromadlar</button></div>`;
+  let body;
+  if(!rows.length)body=`<div class="mut" style="font-size:13.5px;padding:6px 0">Bu oyda ${inc?'daromad':'xarajat'} yozilmagan.</div>`;
+  else{
+    body=`<div class="mut" style="font-size:13px">${monthName(m)}: jami <b class="num" style="color:var(--ink)">${som(Math.round(tot))}</b></div>
+      <div class="dist" role="list">${rows.map(r=>`<div class="dist-r" role="listitem" data-catv="${r.id}">
+        <div class="row"><span class="dot" style="--c:${r.c}"></span><span class="nm">${esc(r.name)}</span><span class="sp"></span><b class="num">${fmt(Math.round(r.v))}</b><span class="pc num">${pc(r.v)}</span></div>
+        ${rows.length>1?`<div class="dbar ${inc?'in':''}"><i style="width:${Math.max(1.5,r.v/mx*100)}%"></i></div>`:''}</div>`).join('')}</div>`;
+  }
+  return `<div class="card"><b>${inc?'Daromad qayerdan kelgan':'Pul qayerga ketgan'}</b><div style="margin-top:12px">${seg}${body}</div></div>`;
+}
 function budgetHTML(){
   const m=S.month,st=monthStats(m);
   let h=headHTML(`Daromad rejasi ${som(income())}`,true)+'<div class="stack">';
@@ -694,6 +723,7 @@ function budgetHTML(){
      <div class="lg" style="--c:var(--line)"><span>Chegaralar jami</span><b class="num">${som(totLim)}</b></div>
      <div class="lg" style="--c:var(--loan)"><span>Kredit: asosiy qarz</span><b class="num">${som(Math.max(st.sched,st.loanPaid))}</b></div>
      <div class="lg" style="--c:var(--ok)"><span>Kelgan daromad</span><b class="num">${som(st.inc)}</b></div></div></div>`;
+  h+=distHTML(m);
   h+=`<div class="card">`+cats().map(c=>{
     const s=L.filter(t=>t.cat===c.id).reduce((a,t)=>a+t.a,0),lim=+c.limit||0,p=lim?Math.min(100,s/lim*100):0;
     return `<div class="cat tap" data-catv="${c.id}"><div class="row"><span class="dot" style="--c:${c.c}"></span><b style="font-weight:600">${esc(c.name)}</b><span class="sp"></span><span class="num"><b>${fmt(s)}</b>${lim?` <span class="mut">/ ${fmt(lim)}</span>`:''}</span><button class="ghost sm" data-lim="${c.id}" aria-label="Chegarani o'zgartirish">✎</button></div>
@@ -726,6 +756,7 @@ function bind(root){
   $$('[data-tx]',root).forEach(r=>r.onclick=()=>txSheet(r.dataset.tx));
   $$('[data-lim]',root).forEach(b=>b.onclick=()=>limSheet(b.dataset.lim));
   $$('[data-catv]',root).forEach(r=>r.onclick=e=>{if(e.target.closest('button'))return;catSheet(r.dataset.catv);});
+  $$('[data-dist]',root).forEach(b=>b.onclick=()=>{S.distIn=b.dataset.dist==='1';render();});
   const ib=$('[data-inc]',root);if(ib)ib.onclick=incSheet;
   const al=$('[data-addloan]',root);if(al)al.onclick=loanSheet;
   const ck=$('[data-check]',root);if(ck)ck.onclick=checkSheet;
@@ -874,7 +905,7 @@ function txSheet(tid){
 }
 /* byudjet: kategoriya bo'yicha shu oydagi yozuvlar */
 function catSheet(cid){
-  const isInt=cid==='__int',c=isInt?{name:'Foizlar',c:'var(--danger)'}:catOf(cid);
+  const isInt=cid==='__int',isIn=cid==='salary'||cid==='extra',c=isInt?{name:'Foizlar',c:'var(--danger)'}:catOf(cid);
   const mEnd=mm=>{const [y,k]=mm.split('-').map(Number);return iso(new Date(y,k,0));};
   const m=S.month,y=m.slice(0,4),pm=addMonth(m,-1);
   // tayyor davrlar: byudjetda ochiq turgan oyga nisbatan
@@ -884,10 +915,10 @@ function catSheet(cid){
   const dP=d=>+d.slice(8)+'-'+MON[+d.slice(5,7)-1]+' '+d.slice(0,4);
   const row=t=>`<div class="tx" data-tx="${t.id}"><div class="ic" style="--c:${c.c}">${esc(c.name[0])}</div>
     <div class="t"><b>${esc(t.note||c.name)}</b><span><span class="wtag ${wOf(t)}">${WN[wOf(t)]}</span>${dLabel(t.d)}${isInt?`, to'lov ${fmt(t.a)}`:''}</span></div>
-    <b class="num amt-out">− ${fmt(Math.round(val(t)))}</b></div>`;
+    <b class="num ${isIn?'amt-in':'amt-out'}">${isIn?'+':'−'} ${fmt(Math.round(val(t)))}</b></div>`;
   const list=()=>{
     const a=from<=to?from:to,b=from<=to?to:from;
-    const L=S.tx.filter(t=>t.d&&t.d>=a&&t.d<=b&&(isInt?fiOf(t)>0:(t.t==='out'&&t.cat===cid)))
+    const L=S.tx.filter(t=>t.d&&t.d>=a&&t.d<=b&&(isInt?fiOf(t)>0:isIn?(t.t==='in'&&(t.cat||'extra')===cid):(t.t==='out'&&t.cat===cid)))
       .sort((p,q)=>(q.d+(q.ts||'')).localeCompare(p.d+(p.ts||'')));
     const sum=X=>Math.round(X.reduce((s,t)=>s+val(t),0));
     const lbl=a.slice(8)==='01'&&b===mEnd(a.slice(0,7))?monthName(a.slice(0,7)):`${dP(a)} — ${dP(b)}`;

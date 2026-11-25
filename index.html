@@ -241,6 +241,8 @@ label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mu
 .cbox button{padding:13px;font-size:15px}
 .cbox .pri{margin-top:6px}
 .cbox-ic{width:40px;height:40px;border-radius:12px;background:var(--danger-soft);color:var(--danger);display:grid;place-items:center;font:700 22px var(--display)}
+label.f{min-width:0}
+label.f input[type=date]{min-width:0;max-width:100%;box-sizing:border-box}
 .cat.tap{cursor:pointer}
 .cat.tap:active{opacity:.7}
 
@@ -872,19 +874,47 @@ function txSheet(tid){
 }
 /* byudjet: kategoriya bo'yicha shu oydagi yozuvlar */
 function catSheet(cid){
-  const m=S.month,isInt=cid==='__int',c=isInt?{name:'Foizlar',c:'var(--danger)'}:catOf(cid);
-  const L=S.tx.filter(t=>inMonth(t,m)&&(isInt?fiOf(t)>0:(t.t==='out'&&t.cat===cid)))
-    .sort((a,b)=>(b.d+(b.ts||'')).localeCompare(a.d+(a.ts||'')));
-  const val=t=>isInt?fiOf(t):t.a,tot=L.reduce((s,t)=>s+val(t),0);
-  const rows=L.map(t=>`<div class="tx" data-tx="${t.id}"><div class="ic" style="--c:${c.c}">${esc(c.name[0])}</div>
+  const isInt=cid==='__int',c=isInt?{name:'Foizlar',c:'var(--danger)'}:catOf(cid);
+  const mEnd=mm=>{const [y,k]=mm.split('-').map(Number);return iso(new Date(y,k,0));};
+  const m=S.month,y=m.slice(0,4),pm=addMonth(m,-1);
+  // tayyor davrlar: byudjetda ochiq turgan oyga nisbatan
+  const P=[['m','Shu oy',m+'-01',mEnd(m)],['pm',"O'tgan oy",pm+'-01',mEnd(pm)],['3m','Oxirgi 3 oy',addMonth(m,-2)+'-01',mEnd(m)],['y',`${y}-yil`,y+'-01-01',y+'-12-31']];
+  let from=P[0][2],to=P[0][3];
+  const val=t=>isInt?fiOf(t):t.a;
+  const dP=d=>+d.slice(8)+'-'+MON[+d.slice(5,7)-1]+' '+d.slice(0,4);
+  const row=t=>`<div class="tx" data-tx="${t.id}"><div class="ic" style="--c:${c.c}">${esc(c.name[0])}</div>
     <div class="t"><b>${esc(t.note||c.name)}</b><span><span class="wtag ${wOf(t)}">${WN[wOf(t)]}</span>${dLabel(t.d)}${isInt?`, to'lov ${fmt(t.a)}`:''}</span></div>
-    <b class="num amt-out">− ${fmt(Math.round(val(t)))}</b></div>`).join('');
-  sheet(`<div class="row" style="gap:10px;margin-bottom:4px"><span class="dot" style="--c:${c.c}"></span><h2 style="margin:0">${esc(c.name)}</h2></div>
-    <div class="mut" style="margin-bottom:12px">${monthName(m)}: ${L.length} ta yozuv, jami <b class="num" style="color:var(--ink)">${som(Math.round(tot))}</b></div>
-    ${L.length?`<div>${rows}</div>`:`<div class="empty">Bu oyda «${esc(c.name)}» bo'yicha yozuv yo'q</div>`}
+    <b class="num amt-out">− ${fmt(Math.round(val(t)))}</b></div>`;
+  const list=()=>{
+    const a=from<=to?from:to,b=from<=to?to:from;
+    const L=S.tx.filter(t=>t.d&&t.d>=a&&t.d<=b&&(isInt?fiOf(t)>0:(t.t==='out'&&t.cat===cid)))
+      .sort((p,q)=>(q.d+(q.ts||'')).localeCompare(p.d+(p.ts||'')));
+    const sum=X=>Math.round(X.reduce((s,t)=>s+val(t),0));
+    const lbl=a.slice(8)==='01'&&b===mEnd(a.slice(0,7))?monthName(a.slice(0,7)):`${dP(a)} — ${dP(b)}`;
+    const months=[...new Set(L.map(t=>t.d.slice(0,7)))];
+    // bir necha oy bo'lsa: har oy alohida, yonida oy jami
+    const body=months.length>1?months.map(mm=>{const X=L.filter(t=>t.d.slice(0,7)===mm);
+        return `<div class="day-h row" style="margin:14px 0 2px"><span>${monthName(mm)}</span><span class="sp"></span><span class="num">${fmt(sum(X))}</span></div>`+X.map(row).join('');}).join('')
+      :L.map(row).join('');
+    return `<div class="mut" style="margin:14px 0 4px">${lbl}: ${L.length} ta yozuv, jami <b class="num" style="color:var(--ink)">${som(sum(L))}</b></div>`
+      +(L.length?body:`<div class="empty">Bu davrda «${esc(c.name)}» bo'yicha yozuv yo'q</div>`);
+  };
+  sheet(`<div class="row" style="gap:10px;margin-bottom:12px"><span class="dot" style="--c:${c.c}"></span><h2 style="margin:0">${esc(c.name)}</h2></div>
+    <div class="chips">${P.map(p=>`<button type="button" class="chip" data-p="${p[0]}">${p[1]}</button>`).join('')}</div>
+    <div class="row" style="gap:10px;margin-top:10px"><label class="f" style="flex:1">Dan<input type="date" id="pf"></label><label class="f" style="flex:1">Gacha<input type="date" id="pt"></label></div>
+    <div id="cl"></div>
     <button id="no" style="width:100%;margin-top:14px">Yopish</button>`,s=>{
+    const upd=()=>{
+      $('#pf',s).value=from;$('#pt',s).value=to;
+      $$('[data-p]',s).forEach(b=>{const p=P.find(x=>x[0]===b.dataset.p);b.classList.toggle('on',p[2]===from&&p[3]===to);});
+      $('#cl',s).innerHTML=list();
+      $$('#cl [data-tx]',s).forEach(r=>r.onclick=()=>txSheet(r.dataset.tx));
+    };
+    $$('[data-p]',s).forEach(b=>b.onclick=()=>{const p=P.find(x=>x[0]===b.dataset.p);from=p[2];to=p[3];upd();});
+    $('#pf',s).addEventListener('change',e=>{if(e.target.value){from=e.target.value;upd();}});
+    $('#pt',s).addEventListener('change',e=>{if(e.target.value){to=e.target.value;upd();}});
     $('#no',s).onclick=closeSheet;
-    $$('[data-tx]',s).forEach(r=>r.onclick=()=>txSheet(r.dataset.tx));
+    upd();
   });
 }
 function limSheet(cid){

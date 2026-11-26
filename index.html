@@ -242,7 +242,13 @@ label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mu
 .cbox .pri{margin-top:6px}
 .cbox-ic{width:40px;height:40px;border-radius:12px;background:var(--danger-soft);color:var(--danger);display:grid;place-items:center;font:700 22px var(--display)}
 label.f{min-width:0}
-label.f input[type=date]{min-width:0;max-width:100%;box-sizing:border-box}
+/* iPhone: sana maydoni o'z kengligidan torayishi va oyna yon tomonga surilmasligi uchun */
+html,body{overflow-x:hidden}
+.sheet{overflow-x:hidden;overscroll-behavior:contain;touch-action:pan-y}
+input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;box-sizing:border-box;min-height:46px;text-align:left}
+input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
+.range{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 12px;align-items:center;margin-top:10px}
+.range label{font-size:13px;color:var(--muted);font-weight:500}
 .dist{display:flex;flex-direction:column;gap:12px;margin-top:12px}
 .dist-r{cursor:pointer}
 .dist-r:active{opacity:.7}
@@ -989,7 +995,7 @@ function walletSheet(k){
   sheet(`<div class="row" style="gap:10px;margin-bottom:4px"><span class="wlogo">${W_SVG[k]}</span><h2 style="margin:0">${WN[k]}</h2></div>
     <div class="mut" style="margin-bottom:12px">Hozirgi qoldiq: <b class="num" style="color:${ev&&ev[k]<0?'var(--danger)':'var(--ink)'}">${ev?som(ev[k]):'—'}</b></div>
     <div class="chips">${P.map(p=>`<button type="button" class="chip" data-p="${p[0]}">${p[1]}</button>`).join('')}</div>
-    <div class="row" style="gap:10px;margin-top:10px"><label class="f" style="flex:1">Dan<input type="date" id="pf"></label><label class="f" style="flex:1">Gacha<input type="date" id="pt"></label></div>
+    <div class="range"><label for="pf">Dan</label><input type="date" id="pf"><label for="pt">Gacha</label><input type="date" id="pt"></div>
     <div id="cl"></div>
     <button id="no" style="width:100%;margin-top:14px">Yopish</button>`,s=>{
     const upd=()=>{
@@ -1034,7 +1040,7 @@ function catSheet(cid){
   };
   sheet(`<div class="row" style="gap:10px;margin-bottom:12px"><span class="dot" style="--c:${c.c}"></span><h2 style="margin:0">${esc(c.name)}</h2></div>
     <div class="chips">${P.map(p=>`<button type="button" class="chip" data-p="${p[0]}">${p[1]}</button>`).join('')}</div>
-    <div class="row" style="gap:10px;margin-top:10px"><label class="f" style="flex:1">Dan<input type="date" id="pf"></label><label class="f" style="flex:1">Gacha<input type="date" id="pt"></label></div>
+    <div class="range"><label for="pf">Dan</label><input type="date" id="pf"><label for="pt">Gacha</label><input type="date" id="pt"></div>
     <div id="cl"></div>
     <button id="no" style="width:100%;margin-top:14px">Yopish</button>`,s=>{
     const upd=()=>{

@@ -2,7 +2,7 @@
 <html lang="uz">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Surojbek hamyoni</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -29,6 +29,8 @@
 /* telefon ekrani: yuqoridagi soat qatori ostidan boshlanadi */
 .wrap{padding-top:calc(14px + env(safe-area-inset-top,0px))}
 html,body{overscroll-behavior-y:none}
+/* ekran o'z-o'zidan kattalashib-kichraymasligi uchun: ikki marta bosish va qisib kattalashtirish o'chirilgan */
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .onb{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;align-items:center;justify-content:center;
   padding:calc(24px + env(safe-area-inset-top,0px)) 24px calc(24px + env(safe-area-inset-bottom,0px))}
 .onb-c{max-width:360px;width:100%;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px}
@@ -127,6 +129,10 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-bk]'))doBackup();
   else if(e.target.closest('[data-rs]'))doRestore();
 });
+
+/* iPhone: barmoq bilan qisib kattalashtirishni to'xtatish (ilova kabi qat'iy o'lchamda tursin) */
+['gesturestart','gesturechange','gestureend'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),{passive:false}));
+document.addEventListener('dblclick',e=>e.preventDefault(),{passive:false});
 </script>
 </head>
 <body>

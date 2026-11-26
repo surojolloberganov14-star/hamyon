@@ -237,7 +237,7 @@ label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mu
 .tx .t{flex:1;min-width:0}
 .tx .t b{display:block;font-weight:600}
 .tx .t>span{font-size:12.5px;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.amt-in{color:var(--ok)}.amt-out{color:var(--ink)}.amt-save{color:var(--save)}.amt-recv{color:var(--recv)}
+.amt-in{color:var(--ok)}.amt-out{color:var(--ink)}.amt-save{color:var(--save)}.amt-recv{color:var(--recv)}.amt-loan{color:var(--loan)}
 .cbox-bg{position:fixed;inset:0;z-index:55;background:rgba(10,18,14,.55);display:flex;align-items:center;justify-content:center;padding:20px}
 .cbox{background:var(--card);border-radius:22px;width:100%;max-width:400px;padding:22px 20px 16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .cbox h2{font:700 18px/1.25 var(--display);margin:2px 0 0}
@@ -513,11 +513,13 @@ const W_SVG={
 const WN={cash:'Naqd',card:'Karta'};
 const wOf=t=>t.w==='cash'?'cash':'card';
 /* naqd va kartadagi pul: oxirgi tekshiruvdagi qoldiq + undan keyingi yozuvlar */
+/* hamyonga pul kiradigan yozuvlar: daromad, jamg'armadan olish, qaytgan qarz, olingan qarz */
+const isInflow=t=>t.t==='in'||t.t==='unsave'||t.t==='back'||t.t==='borrow';
 function expectedBal(skip){
   const B=S.cfg&&S.cfg.bal;if(!B)return null;const v={cash:+B.cash||0,card:+B.card||0};
   for(const t of S.tx){if(skip&&t.id===skip)continue;const after=t.d>B.d||(t.d===B.d&&(t.ts||'')>B.at);if(!after)continue;
     if(t.t==='move'){v[wOf(t)]-=t.a;v[t.w2==='cash'?'cash':'card']+=t.a;continue;}
-    v[wOf(t)]+=(t.t==='in'||t.t==='unsave'||t.t==='back')?t.a:-t.a;}
+    v[wOf(t)]+=isInflow(t)?t.a:-t.a;}
   v.cash=Math.round(v.cash*100)/100;v.card=Math.round(v.card*100)/100;v.total=v.cash+v.card;return v;
 }
 let lastW=(()=>{try{return localStorage.getItem('hw')||'card'}catch(e){return 'card'}})();
@@ -654,12 +656,12 @@ function recvHTML(){
   return h+`<div class="mut" style="font-size:12.5px;text-align:center">Qatorni bossangiz, o'zgartirish yoki o'chirish mumkin. Pulning bir qismini olsangiz, «Oldim» da shuncha summani yozing.</div></div>`;
 }
 function txRow(t){
-  const c=catOf(t.cat);const g=goals().find(x=>x.id===t.goal);const mv=t.t==='move',sv=t.t==='save'||t.t==='unsave',ln=t.t==='lend'||t.t==='back';
-  const name=mv?(t.w==='cash'?"Naqddan kartaga":"Kartadan naqdga"):t.t==='save'?"Jamg'armaga: "+(g?g.name:''):t.t==='unsave'?"Jamg'armadan olindi":t.t==='lend'?"Qarzga berildi":t.t==='back'?"Qarz qaytdi":t.cat==='kredit'&&t.note?t.note:c.name;
-  const sign=mv?'⇄':t.t==='in'||t.t==='back'?'+':t.t==='save'?'→':t.t==='unsave'?'←':'−';
-  const cls=t.t==='in'?'amt-in':ln?'amt-recv':sv||mv?'amt-save':'amt-out';
+  const c=catOf(t.cat);const g=goals().find(x=>x.id===t.goal);const mv=t.t==='move',sv=t.t==='save'||t.t==='unsave',ln=t.t==='lend'||t.t==='back',bw=t.t==='borrow';
+  const name=mv?(t.w==='cash'?"Naqddan kartaga":"Kartadan naqdga"):t.t==='save'?"Jamg'armaga: "+(g?g.name:''):t.t==='unsave'?"Jamg'armadan olindi":t.t==='lend'?"Qarzga berildi":t.t==='back'?"Qarz qaytdi":bw?"Qarz olindi":t.cat==='kredit'&&t.note?t.note:c.name;
+  const sign=mv?'⇄':t.t==='in'||t.t==='back'||bw?'+':t.t==='save'?'→':t.t==='unsave'?'←':'−';
+  const cls=t.t==='in'?'amt-in':bw?'amt-loan':ln?'amt-recv':sv||mv?'amt-save':'amt-out';
   const tag=mv?'':`<span class="wtag ${wOf(t)}">${WN[wOf(t)]}</span>`;
-  return `<div class="tx" data-tx="${t.id}"><div class="ic" style="--c:${ln?'var(--recv)':sv||mv?'var(--save)':c.c}">${mv?'⇄':t.t==='lend'?'↗':t.t==='back'?'↙':esc((sv?'J':c.name)[0])}</div>
+  return `<div class="tx" data-tx="${t.id}"><div class="ic" style="--c:${bw?'var(--loan)':ln?'var(--recv)':sv||mv?'var(--save)':c.c}">${mv?'⇄':t.t==='lend'?'↗':t.t==='back'||bw?'↙':esc((sv?'J':c.name)[0])}</div>
     <div class="t"><b>${esc(name)}</b><span>${tag}${t.cat==='kredit'&&t.note?(t.fi?`Kredit to'lovi, foizi ${short(t.fi)}`:"Kredit to'lovi"):esc(t.note||dLabel(t.d))}</span></div><b class="num ${cls}">${sign} ${fmt(t.a)}</b></div>`;
 }
 
@@ -707,7 +709,7 @@ function loansHTML(){
       ${costHTML(l)}
       <div class="row" style="margin-top:12px"><button class="sm" data-open="${l.id}">${open?'Jadvalni yopish':"To'lov jadvali"}</button><span class="sp"></span>${I.next?`<button class="sm pri" data-paid="${l.id}:${l.schedule.indexOf(I.next)}">To'landi</button>`:`<span class="kind" style="background:var(--accent-soft);color:var(--accent)">Yopilgan</span>`}</div>
       ${open?`<div class="sched">${(l.schedule||[]).map((r,i)=>`<div class="srow ${r.paid?'paid':''}"><button class="chk ${r.paid?'on':''}" data-tog="${l.id}:${i}" aria-label="${r.paid?"To'lanmagan deb belgilash":"To'landi deb belgilash"}">${r.paid?'✓':''}</button><span>${r.d?dLabel(r.d):"muddati yo'q"}</span><span class="sp"></span><b class="num">${fmt(r.a)}</b></div>`).join('')}
-        <div class="row" style="padding:10px 0">${l.kind==='rassrochka'?`<button class="sm" data-price="${l.id}">Tovar narxini o'zgartirish</button>`:''}<span class="sp"></span><button class="sm danger" data-delloan="${l.id}">O'chirish</button></div></div>`:''}
+        <div class="row" style="padding:10px 0">${l.kind==='rassrochka'?`<button class="sm" data-price="${l.id}">Tovar narxini o'zgartirish</button>`:''}${l.kind==='qarz'&&!S.tx.some(t=>t.debtId===l.id)?`<button class="sm" data-gotdebt="${l.id}">Olingan pulni hamyonga qo'shish</button>`:''}<span class="sp"></span><button class="sm danger" data-delloan="${l.id}">O'chirish</button></div></div>`:''}
     </div>`;
   }
   h+=`<button data-addloan style="padding:14px">+ Qarz yoki kredit qo'shish</button>`;
@@ -789,6 +791,7 @@ function bind(root){
   $$('[data-got]',root).forEach(b=>b.onclick=()=>gotSheet(b.dataset.got));
   $$('[data-delloan]',root).forEach(b=>b.onclick=()=>delLoanSheet(b.dataset.delloan));
   $$('[data-price]',root).forEach(b=>b.onclick=()=>priceSheet(b.dataset.price));
+  $$('[data-gotdebt]',root).forEach(b=>b.onclick=()=>gotDebtSheet(b.dataset.gotdebt));
 }
 $$('.tabs button').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;if(S.tab!=='budget'&&S.tab!=='hist')S.month=curMonth();render();scrollTo(0,0);});
 $('#fab').onclick=()=>addSheet('out');
@@ -909,7 +912,7 @@ function editTx(tid){
   sheet(`<h2>${title}</h2>${l?`<div class="mut" style="margin-bottom:12px">${esc(l.name)}${row&&row.d?', jadvaldagi sana '+dLabel(row.d):''}</div>`:''}
     <label class="f">Summa<input id="ea" class="num" inputmode="numeric" value="${fmt(t.a)}"></label>
     <div style="margin-top:12px">${mv?`<div class="wsel"><button type="button" data-f="card" class="card ${w==='card'?'on':''}">${W_SVG.card} → ${W_SVG.cash}</button><button type="button" data-f="cash" class="cash ${w==='cash'?'on':''}">${W_SVG.cash} → ${W_SVG.card}</button></div>`
-      :wSel(w,t.t==='in'||t.t==='back'?'Qaysi hamyonga':'Qaysi puldan')}</div>
+      :wSel(w,isInflow(t)?'Qaysi hamyonga':'Qaysi puldan')}</div>
     <div class="row" style="gap:10px;margin-top:12px"><label class="f" style="flex:1">Sana<input type="date" id="ed" value="${t.d}"></label>${l?'':`<label class="f" style="flex:1.4">Izoh<input id="en" value="${esc(t.note||'')}" placeholder="ixtiyoriy"></label>`}</div>
     <div class="mut" id="efi" style="font-size:12.5px;margin-top:10px"></div>
     <button class="pri" id="ok" style="width:100%;padding:14px;margin-top:14px">Saqlash</button>`,s=>{
@@ -921,7 +924,7 @@ function editTx(tid){
     $('#ok',s).onclick=async()=>{
       const v=parseAmt(ea.value);if(!v){ea.focus();toast('Summani kiriting');return;}
       const d=$('#ed',s).value||t.d,n=$('#en',s)?$('#en',s).value.trim():t.note;
-      const out=t.t!=='in'&&t.t!=='back';
+      const out=!isInflow(t);
       if(out&&!(await fundsOk(w,v,t.id,d)))return;
       const u={...t,a:v,d,note:n};delete u.id;
       if(mv){u.w=w;u.w2=w==='card'?'cash':'card';}else u.w=w;
@@ -982,7 +985,8 @@ function unpaySheet(id,i){
 function txSheet(tid){
   const t=S.tx.find(x=>x.id===tid);if(!t)return;
   sheet(`<h2>Yozuv</h2><div style="margin-bottom:6px"><b class="num" style="font-size:22px">${som(t.a)}</b></div>
-    <div class="mut" style="margin-bottom:16px">${esc(t.t==='move'?(t.w==='cash'?'Naqddan kartaga':'Kartadan naqdga'):t.t==='save'||t.t==='unsave'?"Jamg'arma":t.t==='lend'?'Qarzga berildi':t.t==='back'?'Qarz qaytdi':catOf(t.cat).name)}${t.t==='move'?'':', '+WN[wOf(t)]}, ${dLabel(t.d)}${t.note?'. '+esc(t.note):''}</div>
+    <div class="mut" style="margin-bottom:16px">${esc(t.t==='move'?(t.w==='cash'?'Naqddan kartaga':'Kartadan naqdga'):t.t==='save'||t.t==='unsave'?"Jamg'arma":t.t==='lend'?'Qarzga berildi':t.t==='back'?'Qarz qaytdi':t.t==='borrow'?'Qarz olindi':catOf(t.cat).name)}${t.t==='move'?'':', '+WN[wOf(t)]}, ${dLabel(t.d)}${t.note?'. '+esc(t.note):''}</div>
+    ${t.t==='borrow'?`<div class="note warn" style="margin-bottom:14px">Bu yozuv «Qarzlar» dagi qarz bilan bog'liq. O'chirsangiz, pul hamyondan ayiriladi, qarzning o'zi ro'yxatda qoladi.</div>`:''}
     ${t.t==='lend'?`<div class="note warn" style="margin-bottom:14px">Bu yozuv «Olinadigan pullar» bilan bog'liq. O'chirsangiz, berilgan pul hamyonga qaytadi va u yerda «Pul chiqmadi» deb belgilanadi.</div>`:''}
     ${t.loanId?`<div class="note warn" style="margin-bottom:14px">Bu kredit to'lovi. Summa, sana yoki hamyonni o'zgartirish mumkin. O'chirish uchun «Qarzlar» bo'limidagi to'lov jadvalidan belgini olib tashlang.</div>`:''}
     <button class="pri" id="edt" style="width:100%;padding:14px;margin-bottom:10px">Tahrirlash</button>
@@ -1011,7 +1015,7 @@ function walletSheet(k){
   const dP=d=>+d.slice(8)+'-'+MON[+d.slice(5,7)-1]+' '+d.slice(0,4);
   // yozuvning shu hamyonga ta'siri: + kirim, − chiqim, 0 aloqasi yo'q
   const eff=t=>{if(t.t==='move'){if(t.w===k)return -t.a;if((t.w2||(t.w==='cash'?'card':'cash'))===k)return t.a;return 0;}
-    if(wOf(t)!==k)return 0;return (t.t==='in'||t.t==='unsave'||t.t==='back')?t.a:-t.a;};
+    if(wOf(t)!==k)return 0;return isInflow(t)?t.a:-t.a;};
   const row=(t,v)=>txRow(t).replace(/<b class="num [^"]*">[^<]*<\/b><\/div>\s*$/,`<b class="num ${v>0?'amt-in':'amt-out'}">${v>0?'+':'−'} ${fmt(Math.abs(v))}</b></div>`);
   const list=()=>{
     const a=from<=to?from:to,b=from<=to?to:from;
@@ -1105,18 +1109,26 @@ function incSheet(){
   });
 }
 function loanSheet(){
-  let mode='once';
+  // got: qarz puli hozir qo'lga tegdimi (hamyonga qo'shiladi)
+  let mode='once',got=true,w=lastW,f={};
+  const keep=s=>{['ln','la','ld','lm','lnote','lgd'].forEach(k=>{const x=$('#'+k,s);if(x)f[k]=x.value;});};
   const draw=()=>sheet(`<h2>Qarz yoki kredit qo'shish</h2>
     <div class="stack" style="gap:12px">
-    <label class="f">Kimdan yoki qaysi bankdan<input id="ln" placeholder="masalan: Akam, Anor bank"></label>
-    <label class="f">Qarz summasi<input id="la" class="num" inputmode="numeric" placeholder="0"></label>
+    <label class="f">Kimdan yoki qaysi bankdan<input id="ln" placeholder="masalan: Akam, Anor bank" value="${esc(f.ln||'')}"></label>
+    <label class="f">Qarz summasi<input id="la" class="num" inputmode="numeric" placeholder="0" value="${esc(f.la||'')}"></label>
+    <div><div class="seg" style="grid-template-columns:1fr 1fr"><button type="button" data-g="1" class="${got?'on':''}">Pulni hozir oldim</button><button type="button" data-g="0" class="${got?'':'on'}">Pul tushmadi</button></div>
+      <div class="mut" style="font-size:12.5px;margin-top:6px">${got?"Summa tanlangan hamyonga qo'shiladi. Byudjetda daromad bo'lib hisoblanmaydi."
+        :"Masalan, avvaldan bor qarz yoki nasiyaga olingan narsa. Hamyon qoldig'i o'zgarmaydi."}</div>
+      ${got?`<div style="margin-top:10px">${wSel(w,'Qaysi hamyonga')}</div><label class="f" style="margin-top:10px">Olgan sana<input type="date" id="lgd" value="${esc(f.lgd||today())}"></label>`:''}</div>
     <div class="seg" style="grid-template-columns:1fr 1fr"><button data-m="once" class="${mode==='once'?'on':''}">Bir martada</button><button data-m="monthly" class="${mode==='monthly'?'on':''}">Oyma-oy</button></div>
-    ${mode==='once'?`<label class="f">Qaytarish sanasi (bo'lmasa bo'sh qoldiring)<input type="date" id="ld"></label>`
-      :`<div class="row" style="gap:10px"><label class="f" style="flex:1">Oyiga<input id="lm" class="num" inputmode="numeric" placeholder="0"></label><label class="f" style="flex:1">Birinchi to'lov<input type="date" id="ld" value="${today()}"></label></div>`}
-    <label class="f">Izoh<input id="lnote" placeholder="ixtiyoriy"></label>
+    ${mode==='once'?`<label class="f">Qaytarish sanasi (bo'lmasa bo'sh qoldiring)<input type="date" id="ld" value="${esc(f.ld||'')}"></label>`
+      :`<div class="row" style="gap:10px"><label class="f" style="flex:1">Oyiga<input id="lm" class="num" inputmode="numeric" placeholder="0" value="${esc(f.lm||'')}"></label><label class="f" style="flex:1">Birinchi to'lov<input type="date" id="ld" value="${esc(f.ld||today())}"></label></div>`}
+    <label class="f">Izoh<input id="lnote" placeholder="ixtiyoriy" value="${esc(f.lnote||'')}"></label>
     <button class="pri" id="ok" style="padding:14px">Qo'shish</button></div>`,s=>{
     $$('.amt,[inputmode=numeric]',s).forEach(v=>v.addEventListener('input',()=>{const n=parseAmt(v.value);v.value=n?fmt(n):'';}));
-    $$('[data-m]',s).forEach(b=>b.onclick=()=>{mode=b.dataset.m;draw();});
+    $$('[data-m]',s).forEach(b=>b.onclick=()=>{keep(s);mode=b.dataset.m;draw();});
+    $$('[data-g]',s).forEach(b=>b.onclick=()=>{keep(s);got=b.dataset.g==='1';draw();});
+    bindWSel(s,x=>{w=x;});
     $('#ok',s).onclick=async()=>{
       const name=$('#ln',s).value.trim(),amt=parseAmt($('#la',s).value),d=($('#ld',s)||{}).value||'';
       if(!name||!amt){toast('Ism va summani kiriting');return;}
@@ -1124,8 +1136,12 @@ function loanSheet(){
       if(mode==='once') schedule=[{d,a:amt}];
       else{const mon=parseAmt($('#lm',s).value);if(!mon||!d){toast("Oylik summa va sanani kiriting");return;}
         let left=amt,k=0;while(left>0&&k<240){const dt=new Date(d+'T12:00');dt.setMonth(dt.getMonth()+k);schedule.push({d:iso(dt),a:Math.min(mon,left)});left-=mon;k++;}}
-      const id='q'+uid();
-      if(await write(()=>S.db.doc('loans/'+id).set({name,kind:'qarz',note:$('#lnote',s).value.trim(),schedule,order:100+S.loans.length}),"Qo'shildi"))closeSheet();
+      const id='q'+uid(),gd=got?(($('#lgd',s)||{}).value||today()):'';
+      if(got)rememberW(w);
+      if(await write(async()=>{
+        await S.db.doc('loans/'+id).set({name,kind:'qarz',note:$('#lnote',s).value.trim(),schedule,order:100+S.loans.length});
+        if(got)await S.db.collection('tx').doc('bw-'+id).set({t:'borrow',a:amt,w,d:gd,note:name,debtId:id,ts:new Date().toISOString()});
+      },got?`Qo'shildi, ${WN[w].toLowerCase()}ga ${fmt(amt)} qo'shildi`:"Qo'shildi"))closeSheet();
     };
   });
   draw();
@@ -1244,9 +1260,24 @@ function moveSheet(){
   });
   draw();
 }
+/* avval qo'shilgan qarz: olingan pulni hamyonga qo'shish */
+function gotDebtSheet(id){
+  const l=S.loans.find(x=>x.id===id);if(!l)return;
+  const tot=(l.schedule||[]).reduce((s2,r)=>s2+r.a,0);let w=lastW;
+  sheet(`<h2>Olingan pulni qo'shish</h2><div class="mut" style="margin-bottom:12px">«${esc(l.name)}» bo'yicha qo'lingizga tushgan pul hamyonga qo'shiladi. Byudjetda daromad bo'lib hisoblanmaydi.</div>
+    <label class="f">Olingan summa<input id="ga" class="num" inputmode="numeric" value="${fmt(tot)}"></label>
+    <div style="margin-top:12px">${wSel(w,'Qaysi hamyonga')}</div>
+    <label class="f" style="margin-top:12px">Olgan sana<input type="date" id="gd" value="${today()}"></label>
+    <button class="pri" id="ok" style="width:100%;padding:14px;margin-top:14px">Qo'shish</button>`,s=>{
+    const ga=$('#ga',s);ga.addEventListener('input',()=>{const n=parseAmt(ga.value);ga.value=n?fmt(n):'';});
+    bindWSel(s,x=>{w=x;});
+    $('#ok',s).onclick=async()=>{const a=parseAmt(ga.value);if(!a){toast('Summani kiriting');return;}rememberW(w);
+      if(await write(()=>S.db.collection('tx').doc('bw-'+id).set({t:'borrow',a,w,d:$('#gd',s).value||today(),note:l.name,debtId:id,ts:new Date().toISOString()}),`${WN[w]}ga ${fmt(a)} qo'shildi`))closeSheet();};
+  });
+}
 function delLoanSheet(id){
   const l=S.loans.find(x=>x.id===id);
-  sheet(`<h2>O'chirish</h2><div class="mut" style="margin-bottom:16px">«${esc(l.name)}» ro'yxatdan o'chirilsinmi? Tarixdagi to'lovlar o'chmaydi.</div>
+  sheet(`<h2>O'chirish</h2><div class="mut" style="margin-bottom:16px">«${esc(l.name)}» ro'yxatdan o'chirilsinmi? Tarixdagi to'lovlar o'chmaydi.${S.tx.some(t=>t.debtId===id)?" Qarz olinganda hamyonga qo'shilgan pul yozuvi ham tarixda qoladi, kerak bo'lsa uni «Tarix» dan o'chirasiz.":''}</div>
     <div class="row"><button id="no" style="flex:1">Yo'q</button><button class="danger" id="ok" style="flex:1">O'chirish</button></div>`,s=>{
     $('#no',s).onclick=closeSheet;$('#ok',s).onclick=async()=>{if(await write(()=>S.db.doc('loans/'+id).delete(),"O'chirildi"))closeSheet();};
   });

@@ -331,6 +331,13 @@ label.f input[type=date]{min-width:0;max-width:100%;box-sizing:border-box}
 .wtile svg.logo{width:34px;height:24px;flex:none}
 .wtile .bg{position:absolute;right:-14px;bottom:-16px;width:84px;height:84px;opacity:.12}
 .wtile.neg .v{color:var(--danger)}
+button.wtile{border:0;text-align:left;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button.wtile:active{transform:scale(.98)}
+.wtile .chev{margin-left:auto;font-size:18px;line-height:1;opacity:.6}
+.wlogo svg{width:34px;height:24px;display:block}
+.wsum{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 4px}
+.wsum>div{background:var(--soft);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;font-size:12.5px}
+.wsum b{font-size:15px}
 .wsel{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .wsel button{display:flex;align-items:center;justify-content:center;gap:8px;background:var(--soft);color:var(--muted);padding:10px}
 .wsel button svg{width:26px;height:18px}
@@ -557,7 +564,7 @@ function homeHTML(){
     const B=S.cfg&&S.cfg.bal,ev=expectedBal();
     h+=`<div class="card wallet"><div class="wtotal"><div style="min-width:0"><span class="mut" style="font-size:13px">Hozir qo'lingizda jami</span>
       <div class="big2 num" style="color:${ev&&ev.total<0?'var(--danger)':'var(--ink)'}">${ev?som(ev.total):'—'}</div></div><span class="sp"></span><button class="sm" data-check>${B?'Tekshirish':'Kiritish'}</button></div>
-      <div class="wt">${['cash','card'].map(k=>`<div class="wtile ${k} ${ev&&ev[k]<0?'neg':''}"><div class="lg2">${W_SVG[k]}${WN[k]}</div><div class="v num">${ev?fmt(ev[k]):'—'}</div><span class="mut" style="font-size:11.5px;color:inherit;opacity:.7">so'm</span></div>`).join('')}</div>
+      <div class="wt">${['cash','card'].map(k=>`<button type="button" class="wtile ${k} ${ev&&ev[k]<0?'neg':''}" data-wv="${k}" aria-label="${WN[k]}: yozuvlar"><div class="lg2">${W_SVG[k]}${WN[k]}<span class="chev" aria-hidden="true">›</span></div><div class="v num">${ev?fmt(ev[k]):'—'}</div><span class="mut" style="font-size:11.5px;color:inherit;opacity:.7">so'm · yozuvlar</span></button>`).join('')}</div>
       ${B?`<div class="mut" style="font-size:12px">Oxirgi tekshiruv: ${dLabel(B.d)}. Har bir yozuv tanlangan hamyonga o'zi qo'shiladi yoki ayiriladi.</div>`:`<div class="mut" style="font-size:13px">«Kiritish» tugmasi bilan naqd va kartadagi pulni yozing.</div>`}
       <button class="sm" data-move>⇄ Naqd ↔ Karta</button></div>`;
   }
@@ -764,6 +771,7 @@ function bind(root){
   $$('[data-recv]',root).forEach(r=>r.onclick=e=>{if(e.target.closest('button'))return;recvSheet(r.dataset.recv);});
   const sd=$('[data-showdone]',root);if(sd)sd.onclick=()=>{S.showDone=!S.showDone;render();};
   const mv=$('[data-move]',root);if(mv)mv.onclick=moveSheet;
+  $$('[data-wv]',root).forEach(b=>b.onclick=()=>walletSheet(b.dataset.wv));
   $$('[data-got]',root).forEach(b=>b.onclick=()=>gotSheet(b.dataset.got));
   $$('[data-delloan]',root).forEach(b=>b.onclick=()=>delLoanSheet(b.dataset.delloan));
   $$('[data-price]',root).forEach(b=>b.onclick=()=>priceSheet(b.dataset.price));
@@ -953,6 +961,48 @@ function txSheet(tid){
         const got=[...(r.got||[])],k=got.findIndex(g=>g.d===t.d&&Math.abs(g.a-t.a)<1);if(k<0)return;got.splice(k,1);
         const u={...r,got};delete u.id;if(recvLeft(u)>0){u.done=false;delete u.doneAt;}await S.db.doc('recv/'+r.id).set(u);
       },"O'chirildi"))closeSheet();};
+  });
+}
+/* bosh oyna: naqd yoki karta bo'yicha yozuvlar (kirim va chiqim shu hamyonga nisbatan) */
+function walletSheet(k){
+  const mEnd=mm=>{const [y,n]=mm.split('-').map(Number);return iso(new Date(y,n,0));};
+  const m=curMonth(),pm=addMonth(m,-1);
+  const P=[['m','Shu oy',m+'-01',mEnd(m)],['pm',"O'tgan oy",pm+'-01',mEnd(pm)],['3m','Oxirgi 3 oy',addMonth(m,-2)+'-01',mEnd(m)],['all','Barchasi','2000-01-01','2999-12-31']];
+  let from=P[0][2],to=P[0][3];
+  const dP=d=>+d.slice(8)+'-'+MON[+d.slice(5,7)-1]+' '+d.slice(0,4);
+  // yozuvning shu hamyonga ta'siri: + kirim, − chiqim, 0 aloqasi yo'q
+  const eff=t=>{if(t.t==='move'){if(t.w===k)return -t.a;if((t.w2||(t.w==='cash'?'card':'cash'))===k)return t.a;return 0;}
+    if(wOf(t)!==k)return 0;return (t.t==='in'||t.t==='unsave'||t.t==='back')?t.a:-t.a;};
+  const row=(t,v)=>txRow(t).replace(/<b class="num [^"]*">[^<]*<\/b><\/div>\s*$/,`<b class="num ${v>0?'amt-in':'amt-out'}">${v>0?'+':'−'} ${fmt(Math.abs(v))}</b></div>`);
+  const list=()=>{
+    const a=from<=to?from:to,b=from<=to?to:from;
+    const L=S.tx.filter(t=>t.d&&t.d>=a&&t.d<=b&&eff(t)).sort((p,q)=>(q.d+(q.ts||'')).localeCompare(p.d+(p.ts||'')));
+    const inS=L.reduce((s2,t)=>s2+Math.max(0,eff(t)),0),outS=L.reduce((s2,t)=>s2+Math.max(0,-eff(t)),0);
+    const lbl=a==='2000-01-01'?'Barcha yozuvlar':a.slice(8)==='01'&&b===mEnd(a.slice(0,7))?monthName(a.slice(0,7)):`${dP(a)} — ${dP(b)}`;
+    const days=[...new Set(L.map(t=>t.d))];
+    const body=days.map(d=>{const X=L.filter(t=>t.d===d);return `<div class="day-h" style="margin:14px 0 2px">${dLabel(d)}</div>`+X.map(t=>row(t,eff(t))).join('');}).join('');
+    return `<div class="mut" style="margin-top:14px">${lbl}: ${L.length} ta yozuv</div>
+      <div class="wsum"><div><span class="mut">Kirim</span><b class="num amt-in">+ ${fmt(Math.round(inS))}</b></div><div><span class="mut">Chiqim</span><b class="num">− ${fmt(Math.round(outS))}</b></div></div>`
+      +(L.length?body:`<div class="empty">Bu davrda ${WN[k].toLowerCase()} bo'yicha yozuv yo'q</div>`);
+  };
+  const ev=expectedBal();
+  sheet(`<div class="row" style="gap:10px;margin-bottom:4px"><span class="wlogo">${W_SVG[k]}</span><h2 style="margin:0">${WN[k]}</h2></div>
+    <div class="mut" style="margin-bottom:12px">Hozirgi qoldiq: <b class="num" style="color:${ev&&ev[k]<0?'var(--danger)':'var(--ink)'}">${ev?som(ev[k]):'—'}</b></div>
+    <div class="chips">${P.map(p=>`<button type="button" class="chip" data-p="${p[0]}">${p[1]}</button>`).join('')}</div>
+    <div class="row" style="gap:10px;margin-top:10px"><label class="f" style="flex:1">Dan<input type="date" id="pf"></label><label class="f" style="flex:1">Gacha<input type="date" id="pt"></label></div>
+    <div id="cl"></div>
+    <button id="no" style="width:100%;margin-top:14px">Yopish</button>`,s=>{
+    const upd=()=>{
+      $('#pf',s).value=from==='2000-01-01'?'':from;$('#pt',s).value=to==='2999-12-31'?'':to;
+      $$('[data-p]',s).forEach(b=>{const p=P.find(x=>x[0]===b.dataset.p);b.classList.toggle('on',p[2]===from&&p[3]===to);});
+      $('#cl',s).innerHTML=list();
+      $$('#cl [data-tx]',s).forEach(r=>r.onclick=()=>txSheet(r.dataset.tx));
+    };
+    $$('[data-p]',s).forEach(b=>b.onclick=()=>{const p=P.find(x=>x[0]===b.dataset.p);from=p[2];to=p[3];upd();});
+    $('#pf',s).addEventListener('change',e=>{if(e.target.value){from=e.target.value;if(to==='2999-12-31')to=today();upd();}});
+    $('#pt',s).addEventListener('change',e=>{if(e.target.value){to=e.target.value;if(from==='2000-01-01')from=to.slice(0,7)+'-01';upd();}});
+    $('#no',s).onclick=closeSheet;
+    upd();
   });
 }
 /* byudjet: kategoriya bo'yicha shu oydagi yozuvlar */

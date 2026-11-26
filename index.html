@@ -319,6 +319,8 @@ input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
   padding:10px max(18px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));animation:up .18s ease-out}
 @keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}
 .grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 12px}
+.grab{position:relative}
+.grab::after{content:'';position:absolute;left:-80px;right:-80px;top:-14px;bottom:-12px}
 .sheet h2{font:700 18px var(--display);margin-bottom:14px}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--soft);border-radius:14px;padding:4px;gap:4px}
 .seg button{background:none;color:var(--muted);padding:9px 4px}
@@ -794,7 +796,32 @@ $('#fab').onclick=()=>addSheet('out');
 function sheet(html,onBind){
   const r=$('#sheetRoot');r.innerHTML=`<div class="sheet-bg"><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div></div>`;
   const bg=$('.sheet-bg',r);bg.onclick=e=>{if(e.target===bg)closeSheet();};
+  swipeClose($('.sheet',r),bg);
   onBind&&onBind($('.sheet',r));
+}
+/* oynani barmoq bilan pastga tortib yopish: oyna tepasida turganda pastga tortilsa ergashadi, yetarlicha tortilsa yopiladi */
+function swipeClose(el,bg){
+  let y0=null,dy=0,t0=0,drag=false;
+  el.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1||e.target.closest('input,select,textarea')){y0=null;return;}
+    if(el.scrollTop>0&&!e.target.closest('.grab')){y0=null;return;}
+    y0=e.touches[0].clientY;dy=0;t0=Date.now();drag=false;
+  },{passive:true});
+  el.addEventListener('touchmove',e=>{
+    if(y0==null)return;dy=e.touches[0].clientY-y0;
+    if(!drag){if(dy>6&&el.scrollTop<=0)drag=true;else if(dy<-4){y0=null;return;}else return;}
+    e.preventDefault();
+    const d=Math.max(0,dy);el.style.transition='none';el.style.transform=`translateY(${d}px)`;
+    bg.style.backgroundColor=`rgba(10,18,14,${Math.max(0,.45*(1-d/400))})`;
+  },{passive:false});
+  const end=()=>{
+    if(y0==null)return;y0=null;if(!drag)return;drag=false;
+    const v=dy/Math.max(1,Date.now()-t0);
+    el.style.transition='transform .2s ease';
+    if(dy>90||(v>0.35&&dy>25)){el.style.transform='translateY(110%)';bg.style.transition='background-color .2s';bg.style.backgroundColor='rgba(10,18,14,0)';setTimeout(()=>{if(el.isConnected)closeSheet();},190);}
+    else{el.style.transform='';bg.style.backgroundColor='';}
+  };
+  el.addEventListener('touchend',end);el.addEventListener('touchcancel',end);
 }
 function closeSheet(){$('#sheetRoot').innerHTML='';}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet();});

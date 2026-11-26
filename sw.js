@@ -1,5 +1,5 @@
-// Surojbek hamyoni: internetsiz ishlash uchun keshlash. Versiya: 8
-const C='hamyon-8';
+// Surojbek hamyoni: internetsiz ishlash uchun keshlash. Versiya: 9
+const C='hamyon-9';
 const SHELL=["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-192.png", "./icon-512.png", "./fonts/onest-latin-400-normal.woff2", "./fonts/onest-latin-ext-400-normal.woff2", "./fonts/onest-latin-500-normal.woff2", "./fonts/onest-latin-ext-500-normal.woff2", "./fonts/onest-latin-600-normal.woff2", "./fonts/onest-latin-ext-600-normal.woff2", "./fonts/onest-latin-700-normal.woff2", "./fonts/onest-latin-ext-700-normal.woff2", "./fonts/unbounded-latin-500-normal.woff2", "./fonts/unbounded-latin-ext-500-normal.woff2", "./fonts/unbounded-latin-700-normal.woff2", "./fonts/unbounded-latin-ext-700-normal.woff2"];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
